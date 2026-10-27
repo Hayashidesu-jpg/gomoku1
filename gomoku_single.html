@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>五目並べ</title>
+  <style>
+* { box-sizing: border-box; }
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+  margin: 0;
+  padding: 20px;
+  position: relative;
+  min-height: 100vh;
+  background: #05040f;
+}
+#spaceCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  display: block;
+}
+h1 {
+  color: #f1ecff;
+  text-shadow: 0 0 10px rgba(168, 140, 255, 0.7);
+  margin-bottom: 8px;
+}
+#status {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #d9d6f5;
+  min-height: 24px;
+}
+#boardWrap {
+  position: relative;
+  z-index: 1;
+  border: 4px solid #37474f;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  line-height: 0;
+}
+#board {
+  position: relative;
+  background: #eceff1;
+}
+#gridSvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+#gridSvg line {
+  stroke: #37474f;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+#gridSvg circle.hoshi {
+  fill: #37474f;
+}
+.point {
+  position: absolute;
+  cursor: pointer;
+}
+.point.taken {
+  cursor: default;
+}
+#winLineSvg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+#winLine {
+  stroke: #33cccc;
+  stroke-width: 6;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+}
+#winLine.draw {
+  animation: drawLine 3.0s ease-out forwards;
+}
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+.stone {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-size: 26px;
+  line-height: 1;
+  filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.5));
+}
+.black { color: #e63946; }
+.white { color: #3a86ff; }
+.black::before { content: '\2764\FE0E'; } /* ハート */
+.white::before { content: '\2605'; font-size: 34px; } /* 星（少し大きめ） */
+.last-move {
+  filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.5)) drop-shadow(0 0 6px #fff176);
+}
+#controls {
+  margin-top: 16px;
+  display: flex;
+  gap: 10px;
+}
+button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background: #4a3c28;
+  color: #fff;
+  cursor: pointer;
+}
+button:hover { background: #6b5535; }
+#modeSelect {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.mode-btn {
+  background: #cbb994;
+  color: #4a3c28;
+  font-weight: bold;
+}
+.mode-btn.active {
+  background: #4a3c28;
+  color: #fff;
+}
+.mode-btn:hover { background: #a98f61; }
+.mode-btn.active:hover { background: #6b5535; }
+#cpuLevelSelect {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  color: #d9d6f5;
+  font-size: 14px;
+}
+.level-btn {
+  padding: 6px 12px;
+  background: #cbb994;
+  color: #4a3c28;
+  font-weight: bold;
+}
+.level-btn.active {
+  background: #4a3c28;
+  color: #fff;
+}
+.level-btn:hover { background: #a98f61; }
+.level-btn.active:hover { background: #6b5535; }
+#rules {
+  margin-top: 24px;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  color: #e6e3fa;
+  font-size: 14px;
+  line-height: 1.7;
+}
+#rules h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #f1ecff;
+}
+#rules ul {
+  margin: 0;
+  padding-left: 20px;
+}
+#winOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: background 0.3s ease, opacity 0.3s ease;
+  z-index: 10;
+}
+#winOverlay.show {
+  background: rgba(0,0,0,0.45);
+  opacity: 1;
+  /* 背面のリセットボタン等を押せるよう、オーバーレイ自体はクリックを通す */
+}
+#winOverlay.show #winMessage {
+  pointer-events: auto;
+  cursor: pointer;
+}
+#winMessage {
+  font-size: 64px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 12px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.5);
+  background: linear-gradient(135deg, #e63946, #3a86ff);
+  padding: 30px 60px;
+  border-radius: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  transform: scale(0.5);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease;
+  text-align: center;
+}
+#winOverlay.show #winMessage {
+  transform: scale(1);
+  opacity: 1;
+}
+/* スマホなど狭い画面では勝利メッセージを小さくして、はみ出しを防ぐ */
+@media (max-width: 520px) {
+  #winMessage {
+    font-size: 36px;
+    padding: 20px 28px;
+  }
+}
+
+/* OS側で「視差効果を減らす」設定の人には、演出を即時表示にする */
+@media (prefers-reduced-motion: reduce) {
+  #winLine.draw { animation-duration: 0.01s; }
+  #winMessage, #winOverlay { transition: none; }
+}
+
+/* オンライン対戦パネル */
+#onlinePanel {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #d9d6f5;
+  font-size: 14px;
+}
+#onlineActions, #roomInfo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#roomInfo { display: none; }
+#roomLabel { font-weight: bold; color: #f1ecff; }
+#roomInput {
+  width: 120px;
+  padding: 8px 10px;
+  font-size: 16px; /* iOSで入力時に勝手に拡大されない大きさ */
+  text-align: center;
+  letter-spacing: 2px;
+  border: 1px solid #cbb994;
+  border-radius: 6px;
+  background: #f5efe0;
+  color: #4a3c28;
+}
+#onlineMsg { min-height: 18px; color: #ffd6a5; text-align: center; }
+
+</style>
+</head>
+<body>
+
+<canvas id="spaceCanvas"></canvas>
+
+<h1>五目並べ</h1>
+<div id="modeSelect">
+  <button id="pvpBtn" class="mode-btn active">対人モード</button>
+  <button id="cpuBtn" class="mode-btn">CPU対戦</button>
+  <button id="onlineBtn" class="mode-btn">オンライン対戦</button>
+</div>
+<div id="cpuLevelSelect">
+  <span>CPUレベル:</span>
+  <button class="level-btn" data-level="1">1</button>
+  <button class="level-btn" data-level="2">2</button>
+  <button class="level-btn active" data-level="3">3</button>
+  <button class="level-btn" data-level="4">4</button>
+  <button class="level-btn" data-level="5">5</button>
+  <button class="level-btn" data-level="6">6</button>
+</div>
+<div id="onlinePanel">
+  <div id="onlineActions">
+    <button id="createRoomBtn">部屋を作る</button>
+    <input id="roomInput" inputmode="numeric" maxlength="5" placeholder="部屋コード" aria-label="部屋コード">
+    <button id="joinRoomBtn">入室</button>
+  </div>
+  <div id="roomInfo">
+    <span id="roomLabel"></span>
+    <button id="copyLinkBtn">招待リンクをコピー</button>
+    <button id="leaveBtn">退室</button>
+  </div>
+  <div id="onlineMsg" role="status"></div>
+</div>
+<div id="status">赤（ハート）の番です</div>
+<div id="boardWrap">
+  <div id="board">
+    <svg id="gridSvg"></svg>
+  </div>
+  <svg id="winLineSvg"><line id="winLine" x1="0" y1="0" x2="0" y2="0"/></svg>
+</div>
+<div id="controls">
+  <button id="resetBtn">リセット</button>
+</div>
+
+<div id="rules">
+  <h2>遊び方</h2>
+  <ul>
+    <li>赤（ハート）と青（星）が交互に、盤の線の交点にコマを置きます</li>
+    <li>縦・横・斜めのいずれかで、自分のコマを5つ連続で並べたら勝ちです</li>
+    <li>盤がすべて埋まっても決着がつかなければ引き分けです</li>
+    <li>オンライン対戦は、部屋を作った人が赤、入室した人が青です。部屋コードか招待リンクを相手に伝えてください</li>
+    <li>勝負がつくと勝った方の色で線が引かれ、数秒後に自動で盤面がリセットされます（引き分けも同様です）</li>
+  </ul>
+</div>
+
+<div id="winOverlay">
+  <div id="winMessage"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+// ==== Firebase設定(オンライン対戦用) ====
+// Firebaseコンソールの「プロジェクトの設定 > マイアプリ」に表示される値で書き換えてください。
+// 'YOUR_' のままだと、オンライン対戦だけが使えない状態になります(他のモードは普通に動きます)。
+const FIREBASE_CONFIG = {
+  apiKey: 'AIzaSyAqhI2hNYNFQiIewUGBYRNElnvmMtEQK64',
+  authDomain: 'gomoku-70e69.firebaseapp.com',
+  databaseURL: 'https://gomoku-70e69-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'gomoku-70e69'
+};
+
+// ==== 宇宙背景アニメーション(Canvas) ====
+// 星が個別にきらめきながらゆっくり漂い、星雲がゆらぎ、たまに流れ星が流れる背景
+(function () {
+  const canvas = document.getElementById('spaceCanvas');
+  const c = canvas.getContext('2d');
+  let stars = [];
+  let shootingStars = [];
+  let frame = 0;
+  let vw = 0, vh = 0; // 表示サイズ(CSSピクセル)
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const widthChanged = window.innerWidth !== vw;
+    vw = window.innerWidth;
+    vh = window.innerHeight;
+    canvas.width = Math.round(vw * dpr);
+    canvas.height = Math.round(vh * dpr);
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 横幅が変わったときだけ星を配置し直す(スマホでアドレスバーが出入りしてもちらつかない)
+    if (widthChanged || stars.length === 0) initStars();
+  }
+
+  function initStars() {
+    const w = vw, h = vh;
+    const count = Math.min(260, Math.floor((w * h) / 5500));
+    stars = [];
+    for (let i = 0; i < count; i++) {
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        r: Math.random() * 1.4 + 0.3,
+        baseAlpha: Math.random() * 0.5 + 0.4,
+        twinkleSpeed: Math.random() * 0.02 + 0.006,
+        phase: Math.random() * Math.PI * 2,
+        driftX: (Math.random() - 0.5) * 0.03,
+        driftY: (Math.random() - 0.5) * 0.03
+      });
+    }
+  }
+
+  function spawnShootingStar() {
+    const w = vw, h = vh;
+    shootingStars.push({
+      x: Math.random() * w * 0.6,
+      y: Math.random() * h * 0.3,
+      len: 80 + Math.random() * 90,
+      speed: 9 + Math.random() * 6,
+      angle: Math.PI / 4 + (Math.random() - 0.5) * 0.3,
+      life: 0,
+      maxLife: 45
+    });
+  }
+
+  function draw() {
+    const w = vw, h = vh;
+    c.clearRect(0, 0, w, h);
+
+    // 背景の下地
+    c.fillStyle = '#05040f';
+    c.fillRect(0, 0, w, h);
+
+    // ゆっくりゆらめく星雲の光
+    const t = frame * 0.004;
+    const nebula1 = c.createRadialGradient(w * 0.22, h * 0.25, 0, w * 0.22, h * 0.25, w * 0.55);
+    nebula1.addColorStop(0, `rgba(120, 70, 190, ${0.30 + 0.06 * Math.sin(t)})`);
+    nebula1.addColorStop(1, 'rgba(120, 70, 190, 0)');
+    c.fillStyle = nebula1;
+    c.fillRect(0, 0, w, h);
+
+    const nebula2 = c.createRadialGradient(w * 0.8, h * 0.75, 0, w * 0.8, h * 0.75, w * 0.55);
+    nebula2.addColorStop(0, `rgba(40, 90, 190, ${0.26 + 0.06 * Math.cos(t)})`);
+    nebula2.addColorStop(1, 'rgba(40, 90, 190, 0)');
+    c.fillStyle = nebula2;
+    c.fillRect(0, 0, w, h);
+
+    // 星(個別にきらめきながらゆっくり漂う)
+    stars.forEach(s => {
+      s.phase += s.twinkleSpeed;
+      s.x += s.driftX;
+      s.y += s.driftY;
+      if (s.x < 0) s.x = w; else if (s.x > w) s.x = 0;
+      if (s.y < 0) s.y = h; else if (s.y > h) s.y = 0;
+
+      const alpha = s.baseAlpha * (0.5 + 0.5 * Math.sin(s.phase));
+      c.beginPath();
+      c.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      c.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      c.fill();
+    });
+
+    // 流れ星
+    shootingStars.forEach(s => {
+      s.life++;
+      s.x += Math.cos(s.angle) * s.speed;
+      s.y += Math.sin(s.angle) * s.speed;
+      const fade = Math.max(1 - s.life / s.maxLife, 0);
+      const tailX = s.x - Math.cos(s.angle) * s.len;
+      const tailY = s.y - Math.sin(s.angle) * s.len;
+      const trail = c.createLinearGradient(s.x, s.y, tailX, tailY);
+      trail.addColorStop(0, `rgba(255, 255, 255, ${fade})`);
+      trail.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      c.strokeStyle = trail;
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(s.x, s.y);
+      c.lineTo(tailX, tailY);
+      c.stroke();
+    });
+    shootingStars = shootingStars.filter(s => s.life < s.maxLife);
+    if (Math.random() < 0.006) spawnShootingStar();
+
+    frame++;
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  draw();
+})();
+
+const SIZE = 15; // 15路盤（交点が15x15）
+const CELL = 32; // 交点間の間隔（ピクセル）
+const PADDING = 20; // 盤の端の余白（交点が盤端でも見切れないように）
+const boardWrap = document.getElementById('boardWrap');
+const boardEl = document.getElementById('board');
+const gridSvg = document.getElementById('gridSvg');
+const statusEl = document.getElementById('status');
+const resetBtn = document.getElementById('resetBtn');
+const winLineSvg = document.getElementById('winLineSvg');
+const winLine = document.getElementById('winLine');
+const winOverlay = document.getElementById('winOverlay');
+const winMessage = document.getElementById('winMessage');
+const pvpBtn = document.getElementById('pvpBtn');
+const cpuBtn = document.getElementById('cpuBtn');
+const cpuLevelSelect = document.getElementById('cpuLevelSelect');
+const levelBtns = document.querySelectorAll('.level-btn');
+const onlineBtn = document.getElementById('onlineBtn');
+const onlinePanel = document.getElementById('onlinePanel');
+const onlineActions = document.getElementById('onlineActions');
+const createRoomBtn = document.getElementById('createRoomBtn');
+const joinRoomBtn = document.getElementById('joinRoomBtn');
+const roomInput = document.getElementById('roomInput');
+const roomInfo = document.getElementById('roomInfo');
+const roomLabel = document.getElementById('roomLabel');
+const copyLinkBtn = document.getElementById('copyLinkBtn');
+const leaveBtn = document.getElementById('leaveBtn');
+const onlineMsg = document.getElementById('onlineMsg');
+
+let board = [];
+let currentPlayer = 'black'; // 'black' or 'white'
+let gameOver = false;
+let lastMoveEl = null;
+let mode = 'pvp'; // 'pvp' / 'cpu' / 'online'
+let isThinking = false; // CPUが思考中はクリックを無効化
+let cpuLevel = 3; // CPUの強さ(1〜6)
+
+// 予約中のタイマー。リセット時に確実に止めるため、IDを保持しておく
+let autoResetTimer = null; // 決着後の自動リセット
+let cpuTimer = null;       // CPUの着手待ち
+let winMsgTimer = null;    // 勝利メッセージの表示待ち
+
+function clearPendingTimers() {
+  clearTimeout(autoResetTimer);
+  clearTimeout(cpuTimer);
+  clearTimeout(winMsgTimer);
+  autoResetTimer = cpuTimer = winMsgTimer = null;
+}
+
+function initBoard() {
+  clearPendingTimers(); // 前の対局のタイマーが新しい対局に影響しないようにする
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
+  currentPlayer = 'black';
+  gameOver = false;
+  isThinking = false;
+  lastMoveEl = null;
+  updateStatusForTurn();
+
+  const boardPx = (SIZE - 1) * CELL + PADDING * 2;
+  fitBoard(boardPx);
+  boardEl.style.width = boardPx + 'px';
+  boardEl.style.height = boardPx + 'px';
+
+  // 石や置いた跡をクリアし、盤の線(gridSvg)だけ残す
+  boardEl.querySelectorAll('.stone, .point').forEach(el => el.remove());
+
+  // 碁盤のような格子線を描画
+  gridSvg.setAttribute('width', boardPx);
+  gridSvg.setAttribute('height', boardPx);
+  gridSvg.innerHTML = '';
+  for (let i = 0; i < SIZE; i++) {
+    const pos = PADDING + i * CELL;
+    gridSvg.appendChild(makeLine(pos, PADDING, pos, boardPx - PADDING));
+    gridSvg.appendChild(makeLine(PADDING, pos, boardPx - PADDING, pos));
+  }
+  // 星(星点)を描画。15路盤の慣例的な位置
+  const starIdx = [3, 7, 11];
+  for (const sy of starIdx) {
+    for (const sx of starIdx) {
+      gridSvg.appendChild(makeHoshi(PADDING + sx * CELL, PADDING + sy * CELL));
+    }
+  }
+
+  const winLineSvgSize = boardPx;
+  winLineSvg.setAttribute('width', winLineSvgSize);
+  winLineSvg.setAttribute('height', winLineSvgSize);
+  winLine.classList.remove('draw');
+  winLine.setAttribute('x1', 0);
+  winLine.setAttribute('y1', 0);
+  winLine.setAttribute('x2', 0);
+  winLine.setAttribute('y2', 0);
+  winOverlay.classList.remove('show');
+
+  // 各交点にクリック用の透明な当たり判定を配置
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      const point = document.createElement('div');
+      point.className = 'point';
+      point.style.left = (PADDING + x * CELL - CELL / 2) + 'px';
+      point.style.top = (PADDING + y * CELL - CELL / 2) + 'px';
+      point.style.width = CELL + 'px';
+      point.style.height = CELL + 'px';
+      point.dataset.x = x;
+      point.dataset.y = y;
+      point.addEventListener('click', onPointClick);
+      boardEl.appendChild(point);
+    }
+  }
+}
+
+// 画面幅が盤より狭いときは、盤全体を縮小して収める(body左右の余白20px×2を除く)
+function fitBoard(boardPx = (SIZE - 1) * CELL + PADDING * 2) {
+  const full = boardPx + 8; // 枠線(4px×2)ぶん
+  const scale = Math.min(1, (window.innerWidth - 40) / full);
+  boardWrap.style.zoom = scale;
+}
+window.addEventListener('resize', () => fitBoard());
+
+function makeLine(x1, y1, x2, y2) {
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', x1);
+  line.setAttribute('y1', y1);
+  line.setAttribute('x2', x2);
+  line.setAttribute('y2', y2);
+  return line;
+}
+
+function makeHoshi(cx, cy) {
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', cx);
+  circle.setAttribute('cy', cy);
+  circle.setAttribute('r', 3);
+  circle.setAttribute('class', 'hoshi');
+  return circle;
+}
+
+function onPointClick(e) {
+  if (gameOver || isThinking) return;
+  if (mode === 'cpu' && currentPlayer === 'white') return; // CPUの番はクリック無効
+  const x = parseInt(e.currentTarget.dataset.x, 10);
+  const y = parseInt(e.currentTarget.dataset.y, 10);
+  if (board[y][x] !== null) return;
+
+  if (mode === 'online') {
+    // 自分の手番で、相手が接続中のときだけ送信する。盤への反映は受信側の処理で行う
+    if (!roomRef || !opponentHere || currentPlayer !== myColor) return;
+    sendMove(x, y);
+    return;
+  }
+  makeMove(x, y, currentPlayer);
+}
+
+function makeMove(x, y, player) {
+  board[y][x] = player;
+  const pointEl = boardEl.querySelector(`.point[data-x="${x}"][data-y="${y}"]`);
+  if (pointEl) pointEl.classList.add('taken');
+  placeStone(x, y, player);
+  playPlaceSound();
+
+  const winResult = checkWin(x, y, player);
+  if (winResult) {
+    let winnerName;
+    if (mode === 'cpu') winnerName = player === 'black' ? 'あなた' : 'CPU';
+    else if (mode === 'online') winnerName = player === myColor ? 'あなた' : '相手';
+    else winnerName = player === 'black' ? '赤（ハート）' : '青（星）';
+    statusEl.textContent = winnerName + 'の勝ちです！';
+    gameOver = true;
+    drawWinLine(winResult, player);
+    playWinSound();
+    showWinMessage(winnerName);
+    // 勝利演出が一通り見えたあと、数秒後に自動で盤面をリセットする
+    scheduleAutoReset();
+    return;
+  }
+
+  if (isBoardFull()) {
+    statusEl.textContent = '引き分けです';
+    gameOver = true;
+    // 引き分けも勝敗時と同様、数秒後に自動で盤面をリセットする
+    scheduleAutoReset();
+    return;
+  }
+
+  currentPlayer = player === 'black' ? 'white' : 'black';
+  updateStatusForTurn();
+
+  // CPUモードで白番になったら、少し間を置いて自動的に着手させる
+  if (mode === 'cpu' && currentPlayer === 'white' && !gameOver) {
+    isThinking = true;
+    statusEl.textContent = 'CPUが考え中…';
+    cpuTimer = setTimeout(() => {
+      cpuTimer = null;
+      isThinking = false;
+      cpuMove();
+    }, 500);
+  }
+}
+
+function scheduleAutoReset() {
+  if (mode === 'online') return; // オンラインは「再戦」ボタンで双方が合意してから
+  autoResetTimer = setTimeout(initBoard, 6000);
+}
+
+function updateStatusForTurn() {
+  if (mode === 'online') { refreshOnlineStatus(); return; }
+  if (mode === 'cpu') {
+    statusEl.textContent = currentPlayer === 'black' ? 'あなたの番です（赤）' : 'CPUの番です（青）';
+  } else {
+    statusEl.textContent = (currentPlayer === 'black' ? '赤（ハート）' : '青（星）') + 'の番です';
+  }
+}
+
+function placeStone(x, y, player) {
+  if (lastMoveEl) lastMoveEl.classList.remove('last-move');
+  const stone = document.createElement('div');
+  stone.className = 'stone ' + player + ' last-move';
+  stone.style.left = (PADDING + x * CELL) + 'px';
+  stone.style.top = (PADDING + y * CELL) + 'px';
+  boardEl.appendChild(stone);
+  lastMoveEl = stone;
+}
+
+function isBoardFull() {
+  return board.every(row => row.every(cell => cell !== null));
+}
+
+function checkWin(x, y, player) {
+  const directions = [
+    [1, 0],  // 横
+    [0, 1],  // 縦
+    [1, 1],  // 斜め（右下）
+    [1, -1]  // 斜め（右上）
+  ];
+
+  for (const [dx, dy] of directions) {
+    let count = 1;
+    let endX = x, endY = y;
+    let startX = x, startY = y;
+
+    // 正方向にカウント
+    let nx = x + dx, ny = y + dy;
+    while (inBounds(nx, ny) && board[ny][nx] === player) {
+      count++;
+      endX = nx; endY = ny;
+      nx += dx; ny += dy;
+    }
+
+    // 逆方向にカウント
+    nx = x - dx; ny = y - dy;
+    while (inBounds(nx, ny) && board[ny][nx] === player) {
+      count++;
+      startX = nx; startY = ny;
+      nx -= dx; ny -= dy;
+    }
+
+    if (count >= 5) {
+      return { x1: startX, y1: startY, x2: endX, y2: endY };
+    }
+  }
+  return null;
+}
+
+function drawWinLine({x1, y1, x2, y2}, player) {
+  winLine.style.stroke = player === 'black' ? '#e63946' : '#3a86ff'; // 勝った方の色
+  winLine.setAttribute('x1', PADDING + x1 * CELL);
+  winLine.setAttribute('y1', PADDING + y1 * CELL);
+  winLine.setAttribute('x2', PADDING + x2 * CELL);
+  winLine.setAttribute('y2', PADDING + y2 * CELL);
+  // reflow を挟んでからクラスを付け、アニメーションを毎回再生させる
+  void winLine.getBoundingClientRect();
+  winLine.classList.add('draw');
+}
+
+function inBounds(x, y) {
+  return x >= 0 && x < SIZE && y >= 0 && y < SIZE;
+}
+
+// ==== CPU AI ====
+// 各交点について「自分が置いたときの攻撃力」と「相手に置かれたときの脅威(＝防御価値)」を
+// 合算してスコアを付け、最も高い場所に着手する簡易評価型AI
+
+function cpuMove() {
+  if (gameOver) return;
+  const candidates = getCandidates();
+
+  let scored = candidates.map(({ x, y }) => {
+    const offense = evaluatePoint(x, y, 'white'); // 自分(白)が置いた場合の強さ
+    const defense = evaluatePoint(x, y, 'black');  // 黒が置いた場合の強さ(＝防ぐ価値)
+    return { x, y, offense, defense, score: offense + defense };
+  });
+
+  // 即座に勝てる手・相手の五連を防がなければならない手は、レベルに関係なく最優先
+  const winMove = scored.find(c => c.offense >= 100000);
+  if (winMove) { makeMove(winMove.x, winMove.y, 'white'); return; }
+  const blockMove = scored.find(c => c.defense >= 100000);
+  if (blockMove) { makeMove(blockMove.x, blockMove.y, 'white'); return; }
+
+  // レベル5以上は「この手を打った後、相手が一番強い返し手を打ったらどうなるか」まで読んでスコアを補正する
+  if (cpuLevel >= 5) {
+    scored = scored.map(c => {
+      board[c.y][c.x] = 'white'; // 仮置き
+      let opponentBest = 0;
+      for (const oc of getCandidates()) {
+        const oScore = evaluatePoint(oc.x, oc.y, 'black');
+        if (oScore > opponentBest) opponentBest = oScore;
+      }
+      board[c.y][c.x] = null; // 元に戻す
+      const penaltyWeight = cpuLevel >= 6 ? 0.9 : 0.6;
+      return { ...c, score: c.score - opponentBest * penaltyWeight };
+    });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // レベルが低いほど、最善手を無視してランダムな手を選ぶ確率が高くなる(＝手加減)
+  const randomnessByLevel = { 1: 0.85, 2: 0.6, 3: 0.35, 4: 0.15, 5: 0.05, 6: 0 };
+  const randomness = randomnessByLevel[cpuLevel] ?? 0.35;
+
+  let choice;
+  if (Math.random() < randomness) {
+    choice = candidates[Math.floor(Math.random() * candidates.length)];
+  } else {
+    const topScore = scored[0].score;
+    const topTier = scored.filter(c => c.score === topScore);
+    choice = topTier[Math.floor(Math.random() * topTier.length)];
+  }
+
+  makeMove(choice.x, choice.y, 'white');
+}
+
+// 既に置かれた石の近く(2マス以内)にある空点だけを候補にして計算量を抑える
+function getCandidates() {
+  const candidateSet = new Set();
+  let hasStone = false;
+
+  for (let y = 0; y < SIZE; y++) {
+    for (let x = 0; x < SIZE; x++) {
+      if (board[y][x] === null) continue;
+      hasStone = true;
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dx = -2; dx <= 2; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (inBounds(nx, ny) && board[ny][nx] === null) {
+            candidateSet.add(ny * SIZE + nx);
+          }
+        }
+      }
+    }
+  }
+
+  if (!hasStone) {
+    // 盤面が空なら中央から開始
+    const center = Math.floor(SIZE / 2);
+    return [{ x: center, y: center }];
+  }
+
+  return Array.from(candidateSet).map(v => ({ x: v % SIZE, y: Math.floor(v / SIZE) }));
+}
+
+// (x,y)にplayerの石を仮置きしたときの、4方向の並び具合をスコア化する
+function evaluatePoint(x, y, player) {
+  board[y][x] = player; // 仮置き
+  let total = 0;
+  const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+  for (const [dx, dy] of directions) {
+    total += lineScore(x, y, dx, dy, player);
+  }
+  board[y][x] = null; // 元に戻す
+  return total;
+}
+
+// ある1方向について、(x,y)を通る連続数と、その両端が空いているかを調べてスコアに変換
+function lineScore(x, y, dx, dy, player) {
+  let count = 1;
+  let openEnds = 0;
+
+  let nx = x + dx, ny = y + dy;
+  while (inBounds(nx, ny) && board[ny][nx] === player) {
+    count++;
+    nx += dx; ny += dy;
+  }
+  if (inBounds(nx, ny) && board[ny][nx] === null) openEnds++;
+
+  nx = x - dx; ny = y - dy;
+  while (inBounds(nx, ny) && board[ny][nx] === player) {
+    count++;
+    nx -= dx; ny -= dy;
+  }
+  if (inBounds(nx, ny) && board[ny][nx] === null) openEnds++;
+
+  return scoreForPattern(count, openEnds);
+}
+
+// 連続数と開いている端の数から、その形の危険度／価値を返す
+// (五連はもちろん最優先。四連や三連は「両端が空いているか」で天と地ほど価値が変わる)
+function scoreForPattern(count, openEnds) {
+  if (count >= 5) return 100000;       // 五連＝勝ち
+  if (count === 4) return openEnds === 2 ? 10000 : (openEnds === 1 ? 1000 : 0);
+  if (count === 3) return openEnds === 2 ? 1000 : (openEnds === 1 ? 100 : 0);
+  if (count === 2) return openEnds === 2 ? 100 : (openEnds === 1 ? 10 : 0);
+  return openEnds === 2 ? 10 : 1; // count === 1
+}
+
+// 石を置いたときの効果音を合成して再生（小さく高めの「カラン」という音）
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  // ブラウザの自動再生制限で止まっている場合は再開する
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playPlaceSound() {
+  try {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+
+    const echoStart = now;
+    const echoOsc = audioCtx.createOscillator();
+    const echoGain = audioCtx.createGain();
+    echoOsc.type = 'triangle';
+    echoOsc.frequency.setValueAtTime(1400, echoStart);
+    echoOsc.frequency.exponentialRampToValueAtTime(900, echoStart + 0.09);
+    echoGain.gain.setValueAtTime(0.0001, echoStart);
+    echoGain.gain.exponentialRampToValueAtTime(0.12, echoStart + 0.01);
+    echoGain.gain.exponentialRampToValueAtTime(0.0001, echoStart + 0.15);
+    echoOsc.connect(echoGain);
+    echoGain.connect(audioCtx.destination);
+    echoOsc.start(echoStart);
+    echoOsc.stop(echoStart + 0.16);
+  } catch (e) {
+    // 音声再生に失敗してもゲームは続行できるようにする
+    console.warn('音声再生エラー:', e);
+  }
+}
+
+// 勝利ラインが引かれるのに合わせて鳴らす、上昇アルペジオのファンファーレ音
+function playWinSound() {
+  try {
+    ensureAudio();
+    const now = audioCtx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // ド・ミ・ソ・高いド
+
+    notes.forEach((freq, i) => {
+      const start = now + i * 0.16;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, start);
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.4);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(start);
+      osc.stop(start + 0.45);
+    });
+
+    // 最後にキラッとした高音のきらめきを添える
+    const sparkleStart = now + notes.length * 0.16 + 0.05;
+    const sparkle = audioCtx.createOscillator();
+    const sparkleGain = audioCtx.createGain();
+    sparkle.type = 'sine';
+    sparkle.frequency.setValueAtTime(1568, sparkleStart); // ソ(高)
+    sparkleGain.gain.setValueAtTime(0.0001, sparkleStart);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.25, sparkleStart + 0.02);
+    sparkleGain.gain.exponentialRampToValueAtTime(0.0001, sparkleStart + 0.6);
+    sparkle.connect(sparkleGain);
+    sparkleGain.connect(audioCtx.destination);
+    sparkle.start(sparkleStart);
+    sparkle.stop(sparkleStart + 0.65);
+  } catch (e) {
+    console.warn('音声再生エラー:', e);
+  }
+}
+
+function showWinMessage(winnerName) {
+  winMessage.textContent = winnerName + 'の勝ち！';
+  // 直線が引かれる演出が少し見えてからメッセージをポップさせる
+  winMsgTimer = setTimeout(() => {
+    winMsgTimer = null;
+    winOverlay.classList.add('show');
+  }, 600);
+}
+
+// オーバーレイをクリックすると閉じて盤面を確認できる
+winOverlay.addEventListener('click', () => {
+  winOverlay.classList.remove('show');
+});
+
+resetBtn.addEventListener('click', () => {
+  if (mode === 'online') requestRematch();
+  else initBoard();
+});
+
+function setMode(newMode) {
+  if (mode === newMode) return;
+  if (mode === 'online') leaveRoom(false);
+  mode = newMode;
+  pvpBtn.classList.toggle('active', mode === 'pvp');
+  cpuBtn.classList.toggle('active', mode === 'cpu');
+  onlineBtn.classList.toggle('active', mode === 'online');
+  cpuLevelSelect.style.display = mode === 'cpu' ? 'flex' : 'none';
+  onlinePanel.style.display = mode === 'online' ? 'flex' : 'none';
+  resetBtn.textContent = mode === 'online' ? '再戦' : 'リセット';
+  setOnlineMsg('');
+  initBoard();
+}
+
+pvpBtn.addEventListener('click', () => setMode('pvp'));
+cpuBtn.addEventListener('click', () => setMode('cpu'));
+onlineBtn.addEventListener('click', () => setMode('online'));
+
+levelBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const level = parseInt(btn.dataset.level, 10);
+    if (level === cpuLevel) return;
+    cpuLevel = level;
+    levelBtns.forEach(b => b.classList.toggle('active', b === btn));
+    initBoard();
+  });
+});
+
+// ==== オンライン対戦(Firebase Realtime Database) ====
+// データの形:
+//   rooms/{部屋コード}/seats/black, seats/white   … 席に座った端末のID
+//   rooms/{部屋コード}/presence/black, presence/white … 接続中かどうか
+//   rooms/{部屋コード}/round                      … 何局目か(再戦で+1)
+//   rooms/{部屋コード}/rounds/{局}/{手数}          … {x, y, p} 石を置いた記録
+//   rooms/{部屋コード}/rematch/black, rematch/white … 再戦希望
+// 石を置くときは「記録を書き込む」だけにして、盤への反映は書き込みを受け取った側(自分も含む)で行う。
+// こうすると両端末の盤面が必ず同じ手順で更新される。
+
+let db = null;
+let roomRef = null;
+let roomCode = null;
+let myColor = null;
+let opponentHere = false;
+let moveCount = 0;       // この局でこれまでに反映した手数(次に置く手の番号でもある)
+let currentRound = null;
+let sending = false;
+let roomUnsubs = [];     // 部屋に入っている間の購読を解除する関数
+let movesUnsub = null;
+
+// 端末ID。タブごとに別人として扱うため sessionStorage に保存(再読み込みしても同じ席に戻れる)
+const clientId = (function () {
+  try {
+    let id = sessionStorage.getItem('gomokuClientId');
+    if (!id) {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      sessionStorage.setItem('gomokuClientId', id);
+    }
+    return id;
+  } catch (e) {
+    return Math.random().toString(36).slice(2);
+  }
+})();
+
+function setOnlineMsg(text) { onlineMsg.textContent = text; }
+
+function getDb() {
+  if (db) return db;
+  if (typeof firebase === 'undefined') {
+    setOnlineMsg('Firebaseを読み込めませんでした。ネット接続を確認してください');
+    return null;
+  }
+  if (FIREBASE_CONFIG.apiKey.startsWith('YOUR_')) {
+    setOnlineMsg('script.js の先頭にある FIREBASE_CONFIG が未設定です');
+    return null;
+  }
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  db = firebase.database();
+  return db;
+}
+
+function listen(ref, type, cb) {
+  ref.on(type, cb);
+  roomUnsubs.push(() => ref.off(type, cb));
+}
+
+async function createRoom() {
+  if (!getDb()) return;
+  setOnlineMsg('部屋を作っています…');
+  try {
+    for (let i = 0; i < 5; i++) {
+      const code = String(Math.floor(10000 + Math.random() * 90000));
+      const ref = db.ref('rooms/' + code);
+      // 先に誰かが使っていた部屋コードなら取れない(null のときだけ席を確保する)
+      const res = await ref.child('seats/black').transaction(cur => cur === null ? clientId : undefined);
+      if (res.committed) {
+        await ref.child('round').set(0);
+        enterRoom(code, 'black');
+        return;
+      }
+    }
+    setOnlineMsg('部屋を作れませんでした。もう一度お試しください');
+  } catch (e) {
+    console.warn(e);
+    setOnlineMsg('部屋を作れませんでした。Firebaseの設定とルールを確認してください');
+  }
+}
+
+async function joinRoom(code) {
+  code = String(code).trim();
+  if (!/^\d{5}$/.test(code)) { setOnlineMsg('部屋コードは5桁の数字です'); return; }
+  if (!getDb()) return;
+  setOnlineMsg('入室しています…');
+  try {
+    const ref = db.ref('rooms/' + code);
+    const seats = (await ref.child('seats').get()).val();
+    if (!seats || !seats.black) { setOnlineMsg('その部屋は見つかりません'); return; }
+    if (seats.black === clientId) { enterRoom(code, 'black'); return; } // 再読み込みなどで戻ってきた場合
+    if (seats.white === clientId) { enterRoom(code, 'white'); return; }
+    const res = await ref.child('seats/white').transaction(cur => cur === null ? clientId : undefined);
+    if (!res.committed) { setOnlineMsg('その部屋は満員です'); return; }
+    enterRoom(code, 'white');
+  } catch (e) {
+    console.warn(e);
+    setOnlineMsg('入室できませんでした。Firebaseの設定とルールを確認してください');
+  }
+}
+
+function enterRoom(code, color) {
+  leaveRoom(false);
+  roomCode = code;
+  myColor = color;
+  roomRef = db.ref('rooms/' + code);
+  const oppColor = color === 'black' ? 'white' : 'black';
+  try { sessionStorage.setItem('gomokuRoom', code); } catch (e) {}
+
+  // 自分の接続状態を書き込む(ページを閉じたら自動で false になる)
+  const myPresence = roomRef.child('presence/' + color);
+  listen(db.ref('.info/connected'), 'value', snap => {
+    if (snap.val() === true) {
+      myPresence.onDisconnect().set(false);
+      myPresence.set(true);
+    }
+  });
+  listen(roomRef.child('presence/' + oppColor), 'value', snap => {
+    opponentHere = snap.val() === true;
+    refreshOnlineStatus();
+  });
+  listen(roomRef.child('round'), 'value', snap => startRound(snap.val() || 0));
+  listen(roomRef.child('rematch'), 'value', onRematchChange);
+
+  roomLabel.textContent = '部屋コード ' + code + '｜あなたは' + (color === 'black' ? '赤（ハート）' : '青（星）');
+  onlineActions.style.display = 'none';
+  roomInfo.style.display = 'flex';
+  setOnlineMsg(color === 'black' ? '招待リンクかコードを相手に伝えてください' : '');
+}
+
+// 新しい局を始める(入室時・再戦時)。盤を空にして、その局の手の記録を受信し始める
+function startRound(r) {
+  if (r === currentRound) return;
+  if (movesUnsub) { movesUnsub(); movesUnsub = null; }
+  currentRound = r;
+  sending = false;
+  initBoard();
+  moveCount = 0;
+  const movesRef = roomRef.child('rounds/' + r);
+  const handler = snap => applyRemoteMove(snap);
+  movesRef.on('child_added', handler);
+  movesUnsub = () => movesRef.off('child_added', handler);
+}
+
+function applyRemoteMove(snap) {
+  const n = parseInt(snap.key, 10);
+  const m = snap.val();
+  if (!m || n !== moveCount || board[m.y][m.x] !== null) return; // 順番どおりの有効な手だけ反映
+  moveCount++;
+  makeMove(m.x, m.y, m.p);
+}
+
+function sendMove(x, y) {
+  if (sending || gameOver) return;
+  sending = true;
+  // 同じ手番号にすでに誰かが書いていたら失敗する(同時クリックでも盤が食い違わない)
+  roomRef.child('rounds/' + currentRound + '/' + moveCount)
+    .transaction(cur => cur === null ? { x: x, y: y, p: myColor } : undefined)
+    .catch(e => {
+      console.warn(e);
+      setOnlineMsg('送信に失敗しました。通信状況を確認してください');
+    })
+    .finally(() => { sending = false; });
+}
+
+function refreshOnlineStatus() {
+  if (mode !== 'online') return;
+  if (!roomRef) { statusEl.textContent = '部屋を作るか、コードを入力して入室してください'; return; }
+  if (gameOver) return; // 決着後は勝敗の表示を残す
+  if (!opponentHere) { statusEl.textContent = '相手の接続を待っています…'; return; }
+  statusEl.textContent = currentPlayer === myColor
+    ? 'あなたの番です（' + (myColor === 'black' ? '赤' : '青') + '）'
+    : '相手の番です';
+}
+
+// 再戦は両方が「再戦」を押したときだけ始まる
+function requestRematch() {
+  if (!roomRef) return;
+  roomRef.child('rematch/' + myColor).set(true);
+  if (opponentHere) statusEl.textContent = '相手の返事を待っています…';
+}
+
+function onRematchChange(snap) {
+  const r = snap.val() || {};
+  const oppColor = myColor === 'black' ? 'white' : 'black';
+  if (r.black && r.white) {
+    if (myColor === 'black') { // 二重に進めないよう、赤の端末だけが実行する
+      roomRef.child('rematch').remove()
+        .then(() => roomRef.child('round').transaction(n => (n || 0) + 1));
+    }
+  } else if (r[oppColor]) {
+    statusEl.textContent = '相手が再戦を希望しています。「再戦」を押すと始まります';
+  }
+}
+
+function leaveRoom(resetUi = true) {
+  roomUnsubs.forEach(f => f());
+  roomUnsubs = [];
+  if (movesUnsub) { movesUnsub(); movesUnsub = null; }
+  if (roomRef && myColor) {
+    const p = roomRef.child('presence/' + myColor);
+    p.onDisconnect().cancel();
+    p.set(false);
+  }
+  roomRef = null;
+  roomCode = null;
+  myColor = null;
+  currentRound = null;
+  opponentHere = false;
+  moveCount = 0;
+  sending = false;
+  try { sessionStorage.removeItem('gomokuRoom'); } catch (e) {}
+  onlineActions.style.display = 'flex';
+  roomInfo.style.display = 'none';
+  if (resetUi) { setOnlineMsg(''); initBoard(); }
+}
+
+function inviteUrl() {
+  return location.href.split('#')[0].split('?')[0] + '?room=' + roomCode;
+}
+
+createRoomBtn.addEventListener('click', createRoom);
+joinRoomBtn.addEventListener('click', () => joinRoom(roomInput.value));
+roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') joinRoom(roomInput.value); });
+leaveBtn.addEventListener('click', () => leaveRoom(true));
+copyLinkBtn.addEventListener('click', async () => {
+  if (!roomCode) return;
+  try {
+    await navigator.clipboard.writeText(inviteUrl());
+    setOnlineMsg('招待リンクをコピーしました');
+  } catch (e) {
+    setOnlineMsg('招待リンク: ' + inviteUrl()); // コピーできない環境ではそのまま表示する
+  }
+});
+
+initBoard();
+
+// 招待リンク(?room=12345)で開いた場合や、再読み込みした場合は、自動で部屋に入る
+(function autoJoin() {
+  let code = new URLSearchParams(location.search).get('room');
+  if (!code) {
+    try { code = sessionStorage.getItem('gomokuRoom'); } catch (e) {}
+  }
+  if (code) {
+    setMode('online');
+    roomInput.value = code;
+    joinRoom(code);
+  }
+})();
+
+</script>
+</body>
+</html>
